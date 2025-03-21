@@ -27,11 +27,31 @@ generate_group() {
     echo -n "$group"
 }
 
-# Generate 4 groups of characters
-group1=$(generate_group)  # Generate the first group
-group2=$(generate_group)  # Generate the second group
-group3=$(generate_group)  # Generate the third group
-group4=$(generate_group)  # Generate the fourth group
+# Main script logic
+main() {
+    # Set the default number of groups to generate
+    local num_groups=4
 
-# Output the result as 4 groups separated by spaces
-echo "$group1 $group2 $group3 $group4"
+    # Check if the user provided a custom number of groups
+    if [ $# -gt 0 ]; then
+        # Validate that the argument is a positive integer
+        if [[ "$1" =~ ^[0-9]+$ ]]; then
+            num_groups="$1"
+        else
+            echo "Error: Argument must be a positive integer."
+            exit 1
+        fi
+    fi
+
+    # Generate the specified number of groups
+    local groups=()
+    for ((i = 0; i < num_groups; i++)); do
+        groups+=("$(generate_group)")
+    done
+
+    # Output the groups separated by spaces
+    echo "${groups[*]}"
+}
+
+# Execute the main function with the provided arguments
+main "$@"
