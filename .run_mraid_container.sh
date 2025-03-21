@@ -36,9 +36,19 @@ else
   exit 1
 fi
 
+# Extract the Node.js version from package.json
+NODE_VERSION=$(grep -oP '"node":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' "$CURRENT_DIR/package.json" 2>/dev/null)
+
 # Calculate the final path inside the container
 RELATIVE_PATH="${CURRENT_DIR#$MRAID_DIRECTORY/}"  # Remove MRAID directory prefix
 FINAL_PATH="$CONTAINER_USER_DIR/$RELATIVE_PATH"   # Full path inside the container
+
+# Prepare the command to run inside the container
+if [[ -n "$NODE_VERSION" ]]; then
+  CMD="cd '$FINAL_PATH' && source ~/.bashrc && volta install node@'$NODE_VERSION' && { [[ ! -d node_modules || ! -f package-lock.json ]] && npm install || true; } && npm run dev"
+else
+  CMD="cd '$FINAL_PATH' && exec bash"
+fi
 
 # Run a temporary container without a name
 podman run --rm -it \
@@ -48,4 +58,4 @@ podman run --rm -it \
   --env "HOME=$CONTAINER_USER_DIR" \
   $PORT_MAPPING \
   "$BASE_IMAGE" \
-  bash -c "cd '$FINAL_PATH' && exec bash"
+  bash -c "$CMD"
