@@ -2,8 +2,33 @@
 
 # Configuration
 CONTAINER_USER_DIR="/home/ubuntu"  # User directory inside the container
-BASE_IMAGE="base-image"            # Base image for the container
-CURRENT_DIR=$(pwd -P)             # Current directory (absolute path)
+BASE_IMAGE="base-image-mraid"      # Base image for the container
+CURRENT_DIR=$(pwd -P)              # Current directory (absolute path)
+
+# Function to build the base image if it doesn't exist
+build_base_image() {
+    echo "Base image '$BASE_IMAGE' not found. Building it now..."
+    podman build -t "$BASE_IMAGE" - <<EOF
+FROM ubuntu:latest
+
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+EOF
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to build base image '$BASE_IMAGE'"
+        exit 1
+    fi
+    echo "Base image '$BASE_IMAGE' successfully built."
+}
+
+# Check if the base image exists
+if ! podman image exists "$BASE_IMAGE"; then
+    build_base_image
+fi
 
 # Check if MRAID_DIRECTORY is set
 if [[ -z "$MRAID_DIRECTORY" ]]; then
