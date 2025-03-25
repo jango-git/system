@@ -94,7 +94,7 @@ prepare_container_command() {
     )
 
     CONTAINER_CMD=$(printf "%s && " "${cmd_parts[@]}")
-    CONTAINER_CMD="${CONTAINER_CMD% && }"  # Убираем последний " && "
+    CONTAINER_CMD="${CONTAINER_CMD% && }"
 
     readonly CONTAINER_CMD
 }
