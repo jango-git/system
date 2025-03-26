@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Main function to set up the prompt (creates a local scope)
 _setup_prompt() {
     # =============================================
-    # ANSI COLOR UTILITIES (local functions)
+    # ANSI COLOR UTILITIES
     # =============================================
     _ansi_color() {
         local type=$1
@@ -30,7 +29,7 @@ _setup_prompt() {
     color_to_bg() { _ansi_color "48" "$1"; }
 
     # =============================================
-    # GNOME ACCENT COLOR DETECTION (local)
+    # GNOME ACCENT COLOR DETECTION
     # =============================================
     get_gnome_accent_hex() {
         local accent_color=$(gsettings get org.gnome.desktop.interface accent-color | tr -d "'")
@@ -44,7 +43,7 @@ _setup_prompt() {
     }
 
     # =============================================
-    # COLOR DEFINITIONS (local variables)
+    # COLOR DEFINITIONS
     # =============================================
     local ACCENT_HEX=$(get_gnome_accent_hex)
     local ACCENT_BG=$(color_to_bg "$ACCENT_HEX")
@@ -60,12 +59,12 @@ _setup_prompt() {
     local RESET_FG="\[\e[39m\]"
 
     # =============================================
-    # GIT BRANCH DETECTION (local)
+    # GIT BRANCH DETECTION
     # =============================================
     local BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
 
     # =============================================
-    # PROMPT CONSTRUCTION (only PS1 is global)
+    # PROMPT CONSTRUCTION
     # =============================================
     PS1="$ACCENT_BG\[\e[97m\] \u $PATH_BG$ACCENT_FG"
     if [ -n "$BRANCH" ]; then
@@ -77,8 +76,6 @@ _setup_prompt() {
     PS1+="$RESET "
 }
 
-# Execute the function (all internal variables will be local)
-_setup_prompt
 
-# Cleanup (unset the function itself to leave no traces)
+_setup_prompt
 unset -f _setup_prompt
