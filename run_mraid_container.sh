@@ -56,9 +56,10 @@ EOF
     fi
 }
 
-# Extract configuration from package.json
+# Extract configuration from package.json or webpack.config.js
 get_project_config() {
     local package_json="$CURRENT_DIR/package.json"
+    local webpack_config="$CURRENT_DIR/webpack.config.js"
 
     # Get Node.js version
     readonly NODE_VERSION=$(grep -oP '"node":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' "$package_json" 2>/dev/null)
@@ -67,10 +68,11 @@ get_project_config() {
                   "Please add \"node\": \"x.y.z\" to your package.json"
     fi
 
-    # Get port number
-    readonly PORT=$(grep -oP '"port":\s*\K[0-9]+' "$package_json" 2>/dev/null)
+    # Get port number (try package.json first, then webpack.config.js)
+    readonly PORT=$(grep -oP '"port":\s*\K[0-9]+' "$package_json" 2>/dev/null || 
+                    grep -oP 'port:\s*\K[0-9]+' "$webpack_config" 2>/dev/null)
     if [[ -z "$PORT" ]]; then
-        error_exit "No 'port' field found in package.json."
+        error_exit "No 'port' field found in package.json or webpack.config.js."
     fi
 
     readonly NEXT_PORT=$((PORT + 1))

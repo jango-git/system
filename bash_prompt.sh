@@ -17,7 +17,7 @@ _setup_prompt() {
             echo -n "\[\e[${type};5;${color}m\]"
         else
             declare -A named_colors=(
-                ["default"]="34" ["blue"]="34" ["green"]="32" ["red"]="31" 
+                ["default"]="34" ["blue"]="34" ["green"]="32" ["red"]="31"
                 ["yellow"]="33" ["purple"]="35" ["orange"]="208" ["pink"]="205"
             )
             local code="${named_colors[${color}]:-34}"
