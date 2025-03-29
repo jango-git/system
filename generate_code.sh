@@ -1,57 +1,52 @@
-#!/bin/sh
+#!/bin/bash
 
-# Function to generate a random character from a given set
-generate_char() {
+_generate_code() {
+  # Generate a single random character from the provided character set
+  generate_char() {
     local chars="$1"
-    # Select a random character from the set
     echo -n "${chars:$((RANDOM % ${#chars})):1}"
-}
+  }
 
-# Function to generate a group of 4 characters
-generate_group() {
-    # Define character sets
+  # Generate a shuffled group containing one character from each character class
+  generate_group() {
     local lowercase="abcdefghijklmnopqrstuvwxyz"
     local uppercase="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     local numbers="0123456789"
     local special="!@#$%^&*()_+-=[]{}|;:,.<>?~"
 
-    # Create a group with one character from each set
     local group=""
-    group+=$(generate_char "$lowercase")  # Add a lowercase letter
-    group+=$(generate_char "$uppercase")  # Add an uppercase letter
-    group+=$(generate_char "$numbers")    # Add a number
-    group+=$(generate_char "$special")    # Add a special character
+    group+=$(generate_char "$lowercase")
+    group+=$(generate_char "$uppercase")
+    group+=$(generate_char "$numbers")
+    group+=$(generate_char "$special")
 
-    # Shuffle the characters in the group to randomize their order
+    # Shuffle the characters in the group
     group=$(echo "$group" | fold -w1 | shuf | tr -d '\n')
     echo -n "$group"
-}
+  }
 
-# Main script logic
-main() {
-    # Set the default number of groups to generate
-    local num_groups=4
+  # Default number of groups to generate
+  local num_groups=4
 
-    # Check if the user provided a custom number of groups
-    if [ $# -gt 0 ]; then
-        # Validate that the argument is a positive integer
-        if [[ "$1" =~ ^[0-9]+$ ]]; then
-            num_groups="$1"
-        else
-            echo "Error: Argument must be a positive integer."
-            exit 1
-        fi
+  # Process command line argument if provided
+  if [ $# -gt 0 ]; then
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+      num_groups="$1"
+    else
+      echo "Error: Argument must be a positive integer."
+      exit 1
     fi
+  fi
 
-    # Generate the specified number of groups
-    local groups=()
-    for ((i = 0; i < num_groups; i++)); do
-        groups+=("$(generate_group)")
-    done
+  # Generate the specified number of character groups
+  local groups=()
+  for ((i = 0; i < num_groups; i++)); do
+    groups+=("$(generate_group)")
+  done
 
-    # Output the groups separated by spaces
-    echo "${groups[*]}"
+  # Output all generated groups
+  echo "${groups[*]}"
 }
 
-# Execute the main function with the provided arguments
-main "$@"
+_generate_code "$@"
+unset -f _generate_code
