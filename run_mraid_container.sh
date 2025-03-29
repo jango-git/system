@@ -3,7 +3,7 @@
 # =============================================
 # Configuration section
 # =============================================
-readonly CONTAINER_USER_DIR="/home/ubuntu"
+readonly CONTAINER_USER_DIR="/mnt"
 readonly VOLTA_INSTALL_URL="https://get.volta.sh"
 
 # =============================================
@@ -69,7 +69,7 @@ get_project_config() {
     fi
 
     # Get port number (try package.json first, then webpack.config.js)
-    readonly PORT=$(grep -oP '"port":\s*\K[0-9]+' "$package_json" 2>/dev/null || 
+    readonly PORT=$(grep -oP '"port":\s*\K[0-9]+' "$package_json" 2>/dev/null ||
                     grep -oP 'port:\s*\K[0-9]+' "$webpack_config" 2>/dev/null)
     if [[ -z "$PORT" ]]; then
         error_exit "No 'port' field found in package.json or webpack.config.js."
