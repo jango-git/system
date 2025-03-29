@@ -3,8 +3,8 @@
 _generate_code() {
   # Generate a single random character from the provided character set
   generate_char() {
-    local chars="$1"
-    echo -n "${chars:$((RANDOM % ${#chars})):1}"
+    local characters="$1"
+    echo -n "${characters:$((RANDOM % ${#characters})):1}"
   }
 
   # Generate a shuffled group containing one character from each character class
