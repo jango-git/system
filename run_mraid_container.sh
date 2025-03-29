@@ -1,139 +1,114 @@
 #!/bin/bash
 
-# =============================================
-# Configuration section
-# =============================================
-readonly CONTAINER_USER_DIR="/mnt"
-readonly VOLTA_INSTALL_URL="https://get.volta.sh"
+_run_mraid_container() {
+  local readonly CONTAINER_USER_DIR="/mnt"
+  local readonly VOLTA_INSTALL_URL="https://get.volta.sh"
 
-# =============================================
-# Function definitions
-# =============================================
-
-# Initialize and validate environment
-init_environment() {
-    readonly CURRENT_DIR=$(pwd -P)
-
-    # Set MRAID_DIRECTORY from first argument
+  # Validate input arguments and check environment requirements
+  validate_input() {
     if [[ -z "$1" ]]; then
-        error_exit "MRAID_DIRECTORY argument is required." \
-                  "Usage: $0 <mraid_directory> [base_image_name]"
-    fi
-    readonly MRAID_DIRECTORY=$(realpath "$1")
-
-    # Set BASE_IMAGE from second argument or use default
-    readonly BASE_IMAGE=${2:-"base-image-mraid"}
-
-    if [[ ! -f "$CURRENT_DIR/package.json" ]]; then
-        error_exit "This is not an MRAID project: package.json not found."
+      echo "Error: MRAID directory must be specified"
+      echo "Usage: $0 <mraid_directory> [base_image_name]"
+      exit 1
     fi
 
-    if [[ "$CURRENT_DIR" != "$MRAID_DIRECTORY/"* ]]; then
-        error_exit "This is not an MRAID project: current directory is not inside the MRAID directory."
+    if [[ ! -f "package.json" ]]; then
+      echo "Error: package.json file not found"
+      exit 1
     fi
-}
 
-# Build base container image if needed
-ensure_base_image() {
-    if ! podman image exists "$BASE_IMAGE"; then
-        echo "Base image '$BASE_IMAGE' not found. Building it now..."
+    local mraid_dir=$(realpath "$1")
+    local current_dir=$(pwd)
 
-        podman build -t "$BASE_IMAGE" - <<EOF
+    if [[ "$current_dir" != "$mraid_dir/"* ]]; then
+      echo "Error: Current directory is not inside the MRAID directory"
+      exit 1
+    fi
+
+    echo "$mraid_dir;${2:-$DEFAULT_BASE_IMAGE}"
+  }
+
+  # Generate container arguments based on project configuration
+  generate_container_args() {
+    local mraid_dir=$1
+    local current_dir=$(pwd)
+
+    local node_version=$(grep -oP '"node":\s*"\K[0-9.]+' package.json)
+    [[ -z "$node_version" ]] && { echo "Error: Node.js version not specified"; exit 1; }
+
+    local port=$(grep -oP '"port":\s*\K[0-9]+' package.json || grep -oP 'port:\s*\K[0-9]+' webpack.config.js 2>/dev/null)
+    [[ -z "$port" ]] && { echo "Error: Port not specified"; exit 1; }
+
+    local relative_path="${current_dir#$mraid_dir/}"
+    local container_path="$CONTAINER_USER_DIR/$relative_path"
+    local port_mapping="-p $port:$port -p $((port+1)):$((port+1))"
+
+    local container_cmd="cd '$container_path' && \
+      [ ! -f ~/.bashrc ] && { \
+        echo 'export VOLTA_HOME=\"\$HOME/.volta\"' >> ~/.bashrc && \
+        echo 'export PATH=\"\$VOLTA_HOME/bin:\$PATH\"' >> ~/.bashrc; \
+      } && \
+      [ ! -d ~/.volta ] && curl -fsSL $VOLTA_INSTALL_URL | bash || true && \
+      source ~/.bashrc && \
+      volta install node@$node_version && \
+      { [ ! -d node_modules ] || [ ! -f package-lock.json ]; } && npm install || true && \
+      npm run dev"
+
+    echo "$node_version;$port;$port_mapping;$container_path;$container_cmd"
+  }
+
+  # Ensure the base container image exists, build if necessary
+  ensure_base_image() {
+    local image_name=$1
+
+    if ! podman image exists "$image_name"; then
+      echo "Creating base image $image_name..."
+      podman build -t "$image_name" - <<EOF
 FROM ubuntu:latest
-
 RUN apt-get update && \
-    apt-get upgrade -y && \
     apt-get install -y curl && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get clean
 EOF
 
-        if [ $? -ne 0 ]; then
-            error_exit "Failed to build base image '$BASE_IMAGE'"
-        fi
-
-        echo "Base image '$BASE_IMAGE' successfully built."
+      if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to create base image"
+        exit 1
+      fi
     fi
-}
+  }
 
-# Extract configuration from package.json or webpack.config.js
-get_project_config() {
-    local package_json="$CURRENT_DIR/package.json"
-    local webpack_config="$CURRENT_DIR/webpack.config.js"
+  # Run the container with the configured parameters
+  run_container() {
+    local mraid_dir=$1
+    local base_image=$2
+    local node_version=$3
+    local port_mapping=$4
+    local container_path=$5
+    local container_cmd=$6
 
-    # Get Node.js version
-    readonly NODE_VERSION=$(grep -oP '"node":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' "$package_json" 2>/dev/null)
-    if [[ -z "$NODE_VERSION" ]]; then
-        error_exit "Node.js version not specified in package.json" \
-                  "Please add \"node\": \"x.y.z\" to your package.json"
-    fi
-
-    # Get port number (try package.json first, then webpack.config.js)
-    readonly PORT=$(grep -oP '"port":\s*\K[0-9]+' "$package_json" 2>/dev/null ||
-                    grep -oP 'port:\s*\K[0-9]+' "$webpack_config" 2>/dev/null)
-    if [[ -z "$PORT" ]]; then
-        error_exit "No 'port' field found in package.json or webpack.config.js."
-    fi
-
-    readonly NEXT_PORT=$((PORT + 1))
-    readonly PORT_MAPPING="-p $PORT:$PORT -p $NEXT_PORT:$NEXT_PORT"
-
-    # Calculate container path
-    readonly RELATIVE_PATH="${CURRENT_DIR#$MRAID_DIRECTORY/}"
-    readonly FINAL_PATH="$CONTAINER_USER_DIR/$RELATIVE_PATH"
-}
-
-# Prepare the command to run inside container
-prepare_container_command() {
-    local cmd_parts=(
-        "cd '$FINAL_PATH'"
-        "[ ! -f ~/.bashrc ] && echo 'export VOLTA_HOME=\"\$HOME/.volta\"' >> ~/.bashrc && echo 'export PATH=\"\$VOLTA_HOME/bin:\$PATH\"' >> ~/.bashrc"
-        "[ ! -d ~/.volta ] && curl -fsSL $VOLTA_INSTALL_URL | bash || true"
-        "source ~/.bashrc"
-        "volta install node@'$NODE_VERSION'"
-        "[ ! -d node_modules ] || [ ! -f package-lock.json ] && npm install || true"
-        "npm run dev"
-    )
-
-    CONTAINER_CMD=$(printf "%s && " "${cmd_parts[@]}")
-    CONTAINER_CMD="${CONTAINER_CMD% && }"
-
-    readonly CONTAINER_CMD
-}
-
-# Run the container with prepared configuration
-run_container() {
-    echo "Starting container with Node.js $NODE_VERSION..."
-    echo "Project path in container: $FINAL_PATH"
-    echo "Port mapping: $PORT_MAPPING"
+    echo "Starting container:"
+    echo "  Node.js: $node_version"
+    echo "  Path: $container_path"
+    echo "  Port: $port_mapping"
 
     podman run --rm -it \
-        --userns=keep-id \
-        --user=$(id -u):$(id -g) \
-        --volume "$MRAID_DIRECTORY:$CONTAINER_USER_DIR:Z" \
-        --env "HOME=$CONTAINER_USER_DIR" \
-        $PORT_MAPPING \
-        "$BASE_IMAGE" \
-        bash -c "$CONTAINER_CMD"
+      --userns=keep-id \
+      --volume "$mraid_dir:$CONTAINER_USER_DIR:Z" \
+      --env "HOME=$CONTAINER_USER_DIR" \
+      $port_mapping \
+      "$base_image" \
+      bash -c "$container_cmd"
+  }
+
+  local input=$(validate_input "$@")
+  IFS=';' read -r mraid_dir base_image <<< "$input"
+
+  local container_args=$(generate_container_args "$mraid_dir")
+  IFS=';' read -r node_version port port_mapping container_path container_cmd <<< "$container_args"
+
+  ensure_base_image "$base_image"
+  run_container "$mraid_dir" "$base_image" "$node_version" "$port_mapping" "$container_path" "$container_cmd"
 }
 
-# Display error message and exit
-error_exit() {
-    for msg in "$@"; do
-        echo "Error: $msg" >&2
-    done
-    exit 1
-}
-
-# =============================================
-# Main script execution
-# =============================================
-main() {
-    init_environment "$@"
-    ensure_base_image
-    get_project_config
-    prepare_container_command
-    run_container
-}
-
-main "$@"
+_run_mraid_container "$@"
+unset -f _run_mraid_container
