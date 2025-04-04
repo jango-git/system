@@ -37,12 +37,28 @@ _setup_prompt() {
     echo -n "${color_hex_map[${accent_color}]:-#3584e4}"
   }
 
+  local COLOR_SCHEME=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)
+  if [[ "$COLOR_SCHEME" == *"prefer-dark"* ]]; then
+    IS_DARK_THEME=true
+  else
+    IS_DARK_THEME=false
+  fi
+
   local ACCENT_HEX=$(get_gnome_accent_hex)
   local ACCENT_BG=$(color_to_bg "$ACCENT_HEX")
   local ACCENT_FG=$(color_to_fg "$ACCENT_HEX")
-  local PATH_BG=$(color_to_bg "#585858")
-  local PATH_FG=$(color_to_fg "#D3D3D3")
-  local PATH_BACKGROUND_FG=$(color_to_fg "#585858")
+  
+  local PATH_BG_PATH
+  local PATH_FG_PATH
+  if $IS_DARK_THEME; then
+    PATH_BG_PATH=$(color_to_bg "#585858")
+    PATH_FG_PATH=$(color_to_fg "#D3D3D3")
+  else
+    PATH_BG_PATH=$(color_to_bg "#D3D3D3")
+    PATH_FG_PATH=$(color_to_fg "#585858")
+  fi
+  local PATH_BACKGROUND_FG=$(color_to_fg "$($IS_DARK_THEME && echo "#585858" || echo "#D3D3D3")")
+  
   local GIT_BG=$(color_to_bg "#1d559b")
   local GIT_FG=$(color_to_fg "#ffffff")
   local GIT_BACKGROUND_FG=$(color_to_fg "#1d559b")
@@ -52,13 +68,13 @@ _setup_prompt() {
 
   local BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
 
-  PS1="$ACCENT_BG\[\e[97m\] \u $PATH_BG$ACCENT_FG"
+  PS1="$GIT_FG$ACCENT_BG\[\e[97m\] \u $PATH_BG_PATH$ACCENT_FG"
 
   if [ -n "$BRANCH" ]; then
-    PS1+="$PATH_FG \w $GIT_BG$PATH_BACKGROUND_FG"
+    PS1+="$PATH_FG_PATH \w $GIT_BG$PATH_BACKGROUND_FG"
     PS1+="$GIT_FG  $BRANCH $RESET_BG$GIT_BACKGROUND_FG"
   else
-    PS1+="$PATH_FG \w $RESET_BG$PATH_BACKGROUND_FG"
+    PS1+="$PATH_FG_PATH \w $RESET_BG$PATH_BACKGROUND_FG"
   fi
 
   PS1+="$RESET "
